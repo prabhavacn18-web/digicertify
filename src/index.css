@@ -1,0 +1,266 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@600;700;800&family=Poppins:wght@400;500;600;700&display=swap');
+
+@layer base {
+  :root {
+    /* Dark futuristic palette */
+    --background: 222 47% 6%;
+    --foreground: 210 40% 96%;
+
+    --card: 222 40% 9%;
+    --card-foreground: 210 40% 96%;
+
+    --popover: 222 40% 9%;
+    --popover-foreground: 210 40% 96%;
+
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 173 80% 40%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 222 30% 14%;
+    --muted-foreground: 215 20% 55%;
+
+    --accent: 185 100% 50%;
+    --accent-foreground: 222 47% 6%;
+
+    --destructive: 0 72% 58%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 222 30% 16%;
+    --input: 222 30% 14%;
+    --ring: 217 91% 60%;
+
+    --radius: 0.875rem;
+
+    /* Custom tokens */
+    --success: 160 84% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --glow-blue: 0 0 20px hsl(217 91% 60% / 0.5), 0 0 60px hsl(217 91% 60% / 0.2);
+    --glow-teal: 0 0 20px hsl(173 80% 40% / 0.5), 0 0 60px hsl(173 80% 40% / 0.2);
+    --glow-cyan: 0 0 20px hsl(185 100% 50% / 0.4), 0 0 40px hsl(185 100% 50% / 0.15);
+
+    --gradient-hero: linear-gradient(135deg, hsl(222 47% 6%), hsl(222 40% 10%), hsl(217 60% 12%));
+    --gradient-primary: linear-gradient(135deg, hsl(217 91% 60%), hsl(173 80% 40%));
+    --gradient-card: linear-gradient(145deg, hsl(222 40% 10%), hsl(222 35% 8%));
+    --gradient-hero-subtle: linear-gradient(135deg, hsl(217 91% 60% / 0.08), hsl(173 80% 40% / 0.08));
+
+    --shadow-card: 0 4px 24px -4px hsl(217 91% 60% / 0.12), 0 1px 3px -1px hsl(222 47% 2% / 0.3);
+    --shadow-elevated: 0 12px 40px -8px hsl(217 91% 60% / 0.25), 0 4px 16px -4px hsl(222 47% 2% / 0.4);
+    --shadow-glow: 0 0 30px hsl(217 91% 60% / 0.3), 0 0 80px hsl(217 91% 60% / 0.1);
+
+    --font-display: 'Playfair Display', serif;
+    --font-body: 'Inter', 'Poppins', sans-serif;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background-image:
+      radial-gradient(ellipse at 20% 20%, hsl(217 91% 60% / 0.07) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 80%, hsl(173 80% 40% / 0.07) 0%, transparent 50%),
+      radial-gradient(ellipse at 50% 50%, hsl(185 100% 50% / 0.03) 0%, transparent 70%);
+    background-attachment: fixed;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+  }
+}
+
+@layer utilities {
+
+  /* ── Gradients ─────────────────────────────────── */
+  .gradient-hero {
+    background: var(--gradient-hero);
+  }
+
+  .gradient-primary {
+    background: var(--gradient-primary);
+  }
+
+  .gradient-hero-subtle {
+    background: var(--gradient-hero-subtle);
+  }
+
+  .gradient-text {
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  /* ── Shadows ───────────────────────────────────── */
+  .shadow-card {
+    box-shadow: var(--shadow-card);
+  }
+
+  .shadow-elevated {
+    box-shadow: var(--shadow-elevated);
+  }
+
+  .shadow-glow {
+    box-shadow: var(--shadow-glow);
+  }
+
+  .glow-blue {
+    box-shadow: var(--glow-blue);
+  }
+
+  .glow-teal {
+    box-shadow: var(--glow-teal);
+  }
+
+  .glow-cyan {
+    box-shadow: var(--glow-cyan);
+  }
+
+  /* ── Glass ─────────────────────────────────────── */
+  .glass {
+    background: hsl(222 40% 12% / 0.6);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid hsl(217 91% 60% / 0.15);
+  }
+
+  .glass-strong {
+    background: hsl(222 40% 10% / 0.8);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid hsl(217 91% 60% / 0.2);
+  }
+
+  /* ── Glow border utilities ─────────────────────── */
+  .border-glow {
+    border: 1px solid hsl(217 91% 60% / 0.4);
+    box-shadow: 0 0 12px hsl(217 91% 60% / 0.2), inset 0 0 12px hsl(217 91% 60% / 0.05);
+  }
+
+  .border-glow-teal {
+    border: 1px solid hsl(173 80% 40% / 0.4);
+    box-shadow: 0 0 12px hsl(173 80% 40% / 0.2), inset 0 0 12px hsl(173 80% 40% / 0.05);
+  }
+
+  /* ── Input glow on focus ───────────────────────── */
+  .input-glow:focus {
+    outline: none;
+    border-color: hsl(217 91% 60% / 0.6) !important;
+    box-shadow: 0 0 0 2px hsl(217 91% 60% / 0.15), 0 0 16px hsl(217 91% 60% / 0.2) !important;
+  }
+
+  /* ── Shimmer loading ───────────────────────────── */
+  .shimmer {
+    background: linear-gradient(90deg,
+        hsl(222 40% 12%) 25%,
+        hsl(222 40% 16%) 50%,
+        hsl(222 40% 12%) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+
+  /* ── Noise/grid overlay ────────────────────────── */
+  .grid-overlay {
+    background-image:
+      linear-gradient(hsl(217 91% 60% / 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(217 91% 60% / 0.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  /* ── Shake animation for invalid state ─────────── */
+  .shake {
+    animation: shake 0.5s ease-in-out;
+  }
+
+  /* ── Certificate Print & Export Styles ─────────── */
+  .certificate-base-layout {
+    /* Scale the massive 1122x793 box down to be medium sized on screen */
+    transform-origin: top left;
+    --scale-factor: min(0.65, calc((100vw - 48px) / 1122));
+    transform: scale(var(--scale-factor));
+    margin-bottom: calc(793px * (var(--scale-factor) - 1));
+    margin-right: calc(1122px * (var(--scale-factor) - 1));
+  }
+
+  .certificate-export-container {
+    width: 297mm !important;
+    height: 210mm !important;
+    min-width: 297mm !important;
+    max-width: 297mm !important;
+    min-height: 210mm !important;
+    max-height: 210mm !important;
+    box-shadow: none !important;
+    border: 1px solid #e2e8f0 !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    transform: scale(1) !important;
+    position: relative !important;
+    background: #FDFDFB !important;
+  }
+
+  @media print {
+    body {
+      background: none;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+
+    header,
+    footer,
+    nav,
+    button,
+    .no-print {
+      display: none !important;
+    }
+
+    .print-only {
+      display: block !important;
+    }
+
+    @page {
+      size: A4 landscape;
+      margin: 0;
+    }
+
+    /* Hide everything except the certificate in print mode */
+    body * {
+      visibility: hidden;
+    }
+
+    .certificate-container-wrapper,
+    .certificate-container-wrapper * {
+      visibility: visible;
+    }
+
+    .certificate-container-wrapper {
+      position: absolute;
+      left: 0;
+      top: 0;
+      margin: 0;
+      padding: 0;
+      width: 297mm;
+      height: 210mm;
+    }
+  }
+}
