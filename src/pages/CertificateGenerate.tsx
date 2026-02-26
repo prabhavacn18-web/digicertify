@@ -93,26 +93,65 @@ const CertificateGenerate = () => {
     const el = document.getElementById("certificate-print-node");
     if (!el) return;
 
-    const originalClass = el.className;
-    el.className = originalClass + " certificate-export-container";
+    // Give the hidden CertificatePreview component time to fully render
+    await new Promise((r) => setTimeout(r, 100));
 
-    // Give browser time to apply fixed A4 layout
-    await new Promise((r) => setTimeout(r, 50));
-
-    const canvas = await html2canvas(el, {
-      scale: 2,
-      useCORS: true,
-      logging: false,
-      backgroundColor: "#ffffff",
+    // Clone into a transform-free off-screen container (same technique as in CertificatePreview)
+    const offscreen = document.createElement("div");
+    Object.assign(offscreen.style, {
+      position: "fixed",
+      top: "0",
+      left: "0",
+      width: "1120px",
+      height: "790px",
+      zIndex: "-9999",
+      pointerEvents: "none",
+      overflow: "hidden",
+      transform: "translateX(-200vw)",
     });
+    document.body.appendChild(offscreen);
 
-    el.className = originalClass;
+    try {
+      const clone = el.cloneNode(true) as HTMLElement;
+      Object.assign(clone.style, {
+        width: "1120px",
+        height: "790px",
+        minWidth: "1120px",
+        minHeight: "790px",
+        maxWidth: "1120px",
+        maxHeight: "790px",
+        position: "relative",
+        transform: "none",
+      });
+      offscreen.appendChild(clone);
 
-    const imgData = canvas.toDataURL("image/jpeg", 1.0);
-    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+      await new Promise((r) => setTimeout(r, 60));
 
-    doc.addImage(imgData, "JPEG", 0, 0, doc.internal.pageSize.getWidth(), doc.internal.pageSize.getHeight());
-    doc.save(`Certificate_${certificate.usn}.pdf`);
+      const canvas = await html2canvas(clone, {
+        scale: 1,
+        useCORS: true,
+        logging: false,
+        backgroundColor: "#FDFDFB",
+        width: 1120,
+        height: 790,
+        windowWidth: 1120,
+        windowHeight: 790,
+        x: 0,
+        y: 0,
+        scrollX: 0,
+        scrollY: 0,
+      });
+
+      const imgData = canvas.toDataURL("image/png");
+      const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4", compress: true });
+
+      doc.addImage(imgData, "PNG", 0, 0, doc.internal.pageSize.getWidth(), doc.internal.pageSize.getHeight());
+      doc.save(`Certificate_${certificate.usn}.pdf`);
+    } finally {
+      if (document.body.contains(offscreen)) {
+        document.body.removeChild(offscreen);
+      }
+    }
   };
 
   const handleIndividualDownload = async (student: Student) => {
@@ -176,7 +215,7 @@ const CertificateGenerate = () => {
         </div>
       </header>
 
-      <main className="relative z-10 max-w-3xl mx-auto px-4 py-8 space-y-8 animate-fade-in">
+      <main className="relative z-10 max-w-5xl mx-auto px-4 py-8 space-y-8 animate-fade-in">
 
         {/* ── Single cert section ────────────────────────────────────────── */}
         <div className="rounded-2xl glass-strong border-glow shadow-elevated p-6">
@@ -343,11 +382,9 @@ const CertificateGenerate = () => {
       </footer>
 
       {/* Hidden container for exporting exact DOM copies in bulk mode */}
-      <div style={{ position: "absolute", top: "-9999px", left: "-9999px", visibility: "hidden" }}>
+      <div style={{ position: "absolute", top: "-9999px", left: "-9999px", visibility: "hidden", width: "1120px", height: "790px" }}>
         {hiddenCert && (
-          <div className="w-[297mm] h-[210mm] overflow-hidden">
-            <CertificatePreview certificate={hiddenCert} hideButton />
-          </div>
+          <CertificatePreview certificate={hiddenCert} hideButton />
         )}
       </div>
 
