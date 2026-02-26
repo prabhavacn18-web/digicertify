@@ -1,73 +1,58 @@
-# Welcome to your Lovable project
+# DigiCertify
 
-## Project info
+A secure digital certificate generation and verification platform built with React, TypeScript, and Vite.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## Features
 
-## How can I edit this code?
+- 🎓 **Certificate Generation** – Generate professional Coursera-style completion certificates for students
+- 🔍 **Certificate Verification** – Verify certificates via unique Certificate ID or QR code scan
+- 👨‍💼 **Admin Dashboard** – Upload student CSV data and manage all certificates
+- 📄 **PDF Export** – Download pixel-perfect A4 landscape PDF certificates
+- 🔒 **Secure** – Each certificate has a unique ID and QR code linking to `digicertify.com/verify`
 
-There are several ways of editing your application.
+## Tech Stack
 
-**Use Lovable**
+- **React 18** + **TypeScript**
+- **Vite** (build tool)
+- **Tailwind CSS** + **shadcn/ui** (styling)
+- **jsPDF** + **html2canvas** (PDF generation)
+- **react-qr-code** (QR code generation)
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+## Getting Started
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+# 1. Clone the repository
+git clone https://github.com/prabhavacn18-web/digicertify.git
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+# 2. Navigate into the project
+cd digicertify
 
-# Step 3: Install the necessary dependencies.
-npm i
+# 3. Install dependencies
+npm install
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# 4. Start the development server
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+The app will be available at `http://localhost:8080`.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## Project Structure
 
-**Use GitHub Codespaces**
+```
+src/
+├── components/
+│   ├── CertificatePreview.tsx   # Certificate preview + PDF export
+│   └── ui/                      # shadcn/ui components
+├── pages/
+│   ├── Index.tsx                # Landing page
+│   ├── AdminLogin.tsx           # Admin login
+│   ├── AdminDashboard.tsx       # CSV upload & certificate management
+│   ├── CertificateGenerate.tsx  # Generate & bulk-download certificates
+│   └── CertificateVerify.tsx    # Public verification page
+└── context/
+    └── AppContext.tsx            # Global state (students, certificates)
+```
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## License
 
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+MIT
