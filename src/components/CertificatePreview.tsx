@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
 import QRCode from "react-qr-code";
-import { Certificate } from "@/context/AppContext";
+import { Certificate, useApp } from "@/context/AppContext";
 import { Button } from "@/components/ui/button";
 import { Download, CheckCircle, Award } from "lucide-react";
 
@@ -16,26 +16,34 @@ interface Props {
 const CERT_W = 1120;
 const CERT_H = 790;
 
+// ─── On-screen preview scale ──────────────────────────────────────────────────
+const PREVIEW_MAX_W = 800;
+const PREVIEW_SCALE = Math.min(1, PREVIEW_MAX_W / CERT_W); // ≈ 0.714
+
 const CertificatePreview = ({ certificate, onDownload, hideButton }: Props) => {
   const certRef = useRef<HTMLDivElement>(null);
   const [downloading, setDownloading] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
 
+  // Active custom template from context (undefined = use built-in design)
+  const { activeTemplate } = useApp();
+
+  // ── Verification URL ────────────────────────────────────────────────────────
+  const isLocalhost =
+    typeof window !== "undefined" &&
+    (window.location.hostname === "localhost" ||
+      window.location.hostname === "127.0.0.1");
+  const baseUrl = isLocalhost ? window.location.origin : "https://digicertify.com";
+  const verificationUrl = `${baseUrl}/verify?certId=${certificate.id}`;
+
+  // ── PDF download handler ────────────────────────────────────────────────────
   const handleDownload = async () => {
     if (!certRef.current) return;
     setDownloading(true);
     await new Promise((r) => setTimeout(r, 100));
 
-    // ── Off-screen clone approach ──────────────────────────────────────────
-    // certRef sits inside a CSS-scaled wrapper (transform: scale(~0.71)).
-    // html2canvas reads the DOM layout box, not the visual scaled size, so
-    // we must clone the element into a neutral container (no parent transform)
-    // at its true 1120×790 size before capturing — otherwise devicePixelRatio
-    // and the parent transform stack can produce wrong canvas dimensions.
     let offscreen: HTMLDivElement | null = null;
-
     try {
-      // 1. Create an off-screen host that has no transform or scaling
       offscreen = document.createElement("div");
       Object.assign(offscreen.style, {
         position: "fixed",
@@ -46,12 +54,10 @@ const CertificatePreview = ({ certificate, onDownload, hideButton }: Props) => {
         zIndex: "-9999",
         pointerEvents: "none",
         overflow: "hidden",
-        // Completely outside the visible viewport
         transform: "translateX(-200vw)",
       });
       document.body.appendChild(offscreen);
 
-      // 2. Deep-clone the certificate node into the off-screen host
       const clone = certRef.current.cloneNode(true) as HTMLElement;
       Object.assign(clone.style, {
         width: `${CERT_W}px`,
@@ -61,19 +67,16 @@ const CertificatePreview = ({ certificate, onDownload, hideButton }: Props) => {
         maxWidth: `${CERT_W}px`,
         maxHeight: `${CERT_H}px`,
         position: "relative",
-        transform: "none",  // guarantee no inherited transform
+        transform: "none",
       });
       offscreen.appendChild(clone);
 
-      // Allow browser one paint cycle to lay out the clone
-      await new Promise((r) => setTimeout(r, 60));
+      await new Promise((r) => setTimeout(r, 80));
 
-      // 3. Capture at scale:1 → canvas is exactly CERT_W × CERT_H pixels
-      //    Setting windowWidth/windowHeight prevents html2canvas from using
-      //    the actual viewport size as a reference, which can cause DPR drift.
       const canvas = await html2canvas(clone, {
         scale: 1,
         useCORS: true,
+        allowTaint: true,
         logging: false,
         backgroundColor: "#FDFDFB",
         width: CERT_W,
@@ -86,29 +89,19 @@ const CertificatePreview = ({ certificate, onDownload, hideButton }: Props) => {
         scrollY: 0,
       });
 
-      // 4. Build A4 landscape PDF — image fills the entire page, zero margins
-      const imgData = canvas.toDataURL("image/png"); // PNG = lossless, no JPEG artefacts
-      const doc = new jsPDF({
-        orientation: "landscape",
-        unit: "mm",
-        format: "a4",
-        compress: true,
-      });
-
-      const pdfW = doc.internal.pageSize.getWidth();   // 297 mm
-      const pdfH = doc.internal.pageSize.getHeight();  // 210 mm
-
-      // addImage(data, format, x, y, width, height) — all in mm, starting at (0,0)
+      const imgData = canvas.toDataURL("image/png");
+      const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4", compress: true });
+      const pdfW = doc.internal.pageSize.getWidth();
+      const pdfH = doc.internal.pageSize.getHeight();
       doc.addImage(imgData, "PNG", 0, 0, pdfW, pdfH);
       doc.save(`Certificate_${certificate.usn}.pdf`);
 
       setDownloaded(true);
       setTimeout(() => setDownloaded(false), 3000);
       if (onDownload) onDownload();
-    } catch (error) {
-      console.error("PDF generation failed:", error);
+    } catch (err) {
+      console.error("PDF generation failed:", err);
     } finally {
-      // 5. Always clean up the off-screen clone
       if (offscreen && document.body.contains(offscreen)) {
         document.body.removeChild(offscreen);
       }
@@ -116,11 +109,224 @@ const CertificatePreview = ({ certificate, onDownload, hideButton }: Props) => {
     }
   };
 
-  // Always use digicertify.com domain for QR/verification URL
-  const verificationUrl = `https://digicertify.com/verify?certId=${certificate.id}`;
+  // ════════════════════════════════════════════════════════════════════════════
+  // BRANCH A — Custom template is active
+  // Only the template image + clean overlay of student data. No built-in HTML.
+  // ════════════════════════════════════════════════════════════════════════════
+  const TemplateCertBody = (
+    <div
+      ref={certRef}
+      id={hideButton ? "certificate-print-node" : undefined}
+      style={{
+        width: `${CERT_W}px`,
+        height: `${CERT_H}px`,
+        minWidth: `${CERT_W}px`,
+        minHeight: `${CERT_H}px`,
+        maxWidth: `${CERT_W}px`,
+        maxHeight: `${CERT_H}px`,
+        position: "relative",
+        overflow: "hidden",
+        boxSizing: "border-box",
+        fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif",
+      }}
+    >
+      {/* ── Full-bleed template background ── */}
+      <img
+        src={activeTemplate?.dataUrl}
+        alt="certificate template"
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          width: "100%",
+          height: "100%",
+          objectFit: "fill",
+          display: "block",
+          zIndex: 0,
+        }}
+        crossOrigin="anonymous"
+      />
 
-  // ── Certificate body (shared between preview and hidden export) ──────────
-  const CertBody = (
+      {/* ── Student Name ── top: 42%, centered ── */}
+      <div
+        style={{
+          position: "absolute",
+          top: "42%",
+          left: "50%",
+          transform: "translate(-50%, -50%)",
+          textAlign: "center",
+          zIndex: 10,
+          width: "72%",
+        }}
+      >
+        <h2
+          style={{
+            fontSize: 42,
+            fontWeight: 600,
+            color: "#0F172A",
+            margin: 0,
+            lineHeight: 1.15,
+            letterSpacing: "-0.3px",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {certificate.name}
+        </h2>
+      </div>
+
+      {/* ── USN ── top: 48%, centered ── */}
+      <div
+        style={{
+          position: "absolute",
+          top: "48%",
+          left: "50%",
+          transform: "translate(-50%, -50%)",
+          textAlign: "center",
+          zIndex: 10,
+          width: "60%",
+        }}
+      >
+        <p
+          style={{
+            fontSize: 14,
+            color: "#6B7280",
+            fontFamily: "monospace",
+            letterSpacing: "0.1em",
+            margin: 0,
+            fontWeight: 500,
+          }}
+        >
+          {certificate.usn}
+        </p>
+      </div>
+
+      {/* ── Course Name ── top: 56%, centered ── */}
+      <div
+        style={{
+          position: "absolute",
+          top: "56%",
+          left: "50%",
+          transform: "translate(-50%, -50%)",
+          textAlign: "center",
+          zIndex: 10,
+          width: "70%",
+        }}
+      >
+        <h3
+          style={{
+            fontSize: 28,
+            fontWeight: 600,
+            color: "#1E293B",
+            margin: 0,
+            letterSpacing: "-0.2px",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {certificate.course}
+        </h3>
+      </div>
+
+      {/* ── Score ── top: 64%, centered ── */}
+      <div
+        style={{
+          position: "absolute",
+          top: "64%",
+          left: "50%",
+          transform: "translate(-50%, -50%)",
+          textAlign: "center",
+          zIndex: 10,
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 8,
+          backgroundColor: "rgba(255,255,255,0.88)",
+          border: "1.5px solid #0EA5E9",
+          borderRadius: 999,
+          padding: "5px 22px",
+          whiteSpace: "nowrap",
+        }}
+      >
+        <span style={{ fontSize: 12, color: "#0EA5E9", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+          Score
+        </span>
+        <span style={{ fontSize: 20, fontWeight: 800, color: "#0F172A" }}>
+          {certificate.score}%
+        </span>
+      </div>
+
+      {/* ── Issue Date ── bottom: 70px, left: 120px ── */}
+      <div
+        style={{
+          position: "absolute",
+          bottom: 70,
+          left: 120,
+          zIndex: 10,
+        }}
+      >
+        <p style={{ fontSize: 13, color: "#374151", fontWeight: 600, margin: 0 }}>
+          {certificate.issuedDate}
+        </p>
+      </div>
+
+      {/* ── Certificate ID ── bottom: 40px, center ── */}
+      <div
+        style={{
+          position: "absolute",
+          bottom: 40,
+          left: "50%",
+          transform: "translateX(-50%)",
+          textAlign: "center",
+          zIndex: 10,
+          whiteSpace: "nowrap",
+        }}
+      >
+        <p
+          style={{
+            fontSize: 9.5,
+            color: "#9CA3AF",
+            fontFamily: "monospace",
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+            margin: 0,
+          }}
+        >
+          Certificate ID:{" "}
+          <span style={{ fontWeight: 700, color: "#6B7280" }}>{certificate.id}</span>
+        </p>
+      </div>
+
+      {/* ── QR Code ── bottom: 50px, right: 120px, 90×90 ── */}
+      <div
+        style={{
+          position: "absolute",
+          bottom: 50,
+          right: 120,
+          width: 90,
+          height: 90,
+          backgroundColor: "#ffffff",
+          padding: 4,
+          border: "1px solid #E2E8F0",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 10,
+          boxSizing: "border-box",
+        }}
+      >
+        <QRCode value={verificationUrl} size={82} level="M" />
+      </div>
+    </div>
+  );
+
+
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // BRANCH B — No template: built-in premium certificate design (unchanged)
+  // ════════════════════════════════════════════════════════════════════════════
+  const BuiltInCertBody = (
     <div
       ref={certRef}
       id={hideButton ? "certificate-print-node" : undefined}
@@ -150,7 +356,7 @@ const CertificatePreview = ({ certificate, onDownload, hideButton }: Props) => {
         }}
       />
 
-      {/* ── Corner decorators (thin lines at each corner, like Coursera) ── */}
+      {/* ── Corner decorators ── */}
       {[
         { top: 10, left: 10 },
         { top: 10, right: 10 },
@@ -172,49 +378,11 @@ const CertificatePreview = ({ certificate, onDownload, hideButton }: Props) => {
       ))}
 
       {/* ── Watermark geometric circles ── */}
-      <div
-        style={{
-          position: "absolute",
-          top: -320,
-          left: -160,
-          width: 680,
-          height: 680,
-          borderRadius: "50%",
-          border: "1px solid #D1D5DB",
-          opacity: 0.18,
-          pointerEvents: "none",
-          zIndex: 0,
-        }}
-      />
-      <div
-        style={{
-          position: "absolute",
-          bottom: -480,
-          left: 220,
-          width: 900,
-          height: 900,
-          borderRadius: "50%",
-          border: "1px solid #D1D5DB",
-          opacity: 0.15,
-          pointerEvents: "none",
-          zIndex: 0,
-        }}
-      />
+      <div style={{ position: "absolute", top: -320, left: -160, width: 680, height: 680, borderRadius: "50%", border: "1px solid #D1D5DB", opacity: 0.18, pointerEvents: "none", zIndex: 0 }} />
+      <div style={{ position: "absolute", bottom: -480, left: 220, width: 900, height: 900, borderRadius: "50%", border: "1px solid #D1D5DB", opacity: 0.15, pointerEvents: "none", zIndex: 0 }} />
 
-      {/* ════════════════════════════════════════ */}
-      {/* ── LEFT CONTENT AREA ── */}
-      {/* ════════════════════════════════════════ */}
-
-      {/* Title: COMPLETION CERTIFICATE */}
-      <div
-        style={{
-          position: "absolute",
-          top: 64,
-          left: 64,
-          right: 340,
-          zIndex: 10,
-        }}
-      >
+      {/* ── Title: COMPLETION CERTIFICATE ── */}
+      <div style={{ position: "absolute", top: 64, left: 64, right: 340, zIndex: 10 }}>
         <h1
           style={{
             fontSize: 56,
@@ -230,358 +398,90 @@ const CertificatePreview = ({ certificate, onDownload, hideButton }: Props) => {
         </h1>
       </div>
 
-      {/* "This is to certify that" */}
-      <div
-        style={{
-          position: "absolute",
-          top: 250,
-          left: 64,
-          zIndex: 10,
-        }}
-      >
-        <p
-          style={{
-            fontSize: 15,
-            color: "#6B7280",
-            margin: 0,
-            fontWeight: 500,
-          }}
-        >
+      {/* ── "This is to certify that" ── */}
+      <div style={{ position: "absolute", top: 250, left: 64, zIndex: 10 }}>
+        <p style={{ fontSize: 15, color: "#6B7280", margin: 0, fontWeight: 500 }}>
           This is to certify that
         </p>
       </div>
 
-      {/* Student Name */}
-      <div
-        style={{
-          position: "absolute",
-          top: 282,
-          left: 64,
-          right: 340,
-          zIndex: 10,
-        }}
-      >
-        <h2
-          style={{
-            fontSize: 48,
-            fontWeight: 700,
-            color: "#0F172A",
-            margin: "0 0 6px 0",
-            lineHeight: 1.1,
-            letterSpacing: "-0.3px",
-          }}
-        >
+      {/* ── Student Name + USN ── */}
+      <div style={{ position: "absolute", top: 282, left: 64, right: 340, zIndex: 10 }}>
+        <h2 style={{ fontSize: 48, fontWeight: 700, color: "#0F172A", margin: "0 0 6px 0", lineHeight: 1.1, letterSpacing: "-0.3px" }}>
           {certificate.name}
         </h2>
-        <p
-          style={{
-            fontSize: 12,
-            color: "#9CA3AF",
-            fontFamily: "monospace",
-            letterSpacing: "0.08em",
-            margin: 0,
-          }}
-        >
+        <p style={{ fontSize: 12, color: "#9CA3AF", fontFamily: "monospace", letterSpacing: "0.08em", margin: 0 }}>
           USN: {certificate.usn}
         </p>
       </div>
 
-      {/* "has successfully completed the course" + course name */}
-      <div
-        style={{
-          position: "absolute",
-          top: 430,
-          left: 64,
-          right: 340,
-          zIndex: 10,
-        }}
-      >
-        <p
-          style={{
-            fontSize: 14,
-            color: "#6B7280",
-            margin: "0 0 8px 0",
-          }}
-        >
+      {/* ── Course ── */}
+      <div style={{ position: "absolute", top: 430, left: 64, right: 340, zIndex: 10 }}>
+        <p style={{ fontSize: 14, color: "#6B7280", margin: "0 0 8px 0" }}>
           has successfully completed the course
         </p>
-        <h3
-          style={{
-            fontSize: 22,
-            fontWeight: 600,
-            color: "#1E293B",
-            letterSpacing: "-0.2px",
-            margin: 0,
-          }}
-        >
+        <h3 style={{ fontSize: 22, fontWeight: 600, color: "#1E293B", letterSpacing: "-0.2px", margin: 0 }}>
           {certificate.course}
         </h3>
       </div>
 
-      {/* Issue Date */}
-      <div
-        style={{
-          position: "absolute",
-          top: 530,
-          left: 64,
-          zIndex: 10,
-        }}
-      >
-        <p
-          style={{
-            fontSize: 15,
-            fontWeight: 600,
-            color: "#374151",
-            margin: 0,
-          }}
-        >
+      {/* ── Issue Date ── */}
+      <div style={{ position: "absolute", top: 530, left: 64, zIndex: 10 }}>
+        <p style={{ fontSize: 15, fontWeight: 600, color: "#374151", margin: 0 }}>
           {certificate.issuedDate}
         </p>
       </div>
 
-      {/* QR Code at bottom-left */}
-      <div
-        style={{
-          position: "absolute",
-          bottom: 48,
-          left: 64,
-          zIndex: 10,
-          display: "flex",
-          alignItems: "center",
-          gap: 14,
-        }}
-      >
-        <div
-          style={{
-            width: 90,
-            height: 90,
-            backgroundColor: "#fff",
-            padding: 4,
-            border: "1px solid #E2E8F0",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            flexShrink: 0,
-          }}
-        >
-          <QRCode
-            value={verificationUrl}
-            size={82}
-            style={{ display: "block", width: "100%", height: "100%" }}
-            level="M"
-          />
+      {/* ── QR Code at bottom-left ── */}
+      <div style={{ position: "absolute", bottom: 48, left: 64, zIndex: 10, display: "flex", alignItems: "center", gap: 14 }}>
+        <div style={{ width: 90, height: 90, backgroundColor: "#fff", padding: 4, border: "1px solid #E2E8F0", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <QRCode value={verificationUrl} size={82} style={{ display: "block", width: "100%", height: "100%" }} level="M" />
         </div>
         <div>
-          <p
-            style={{
-              fontSize: 9,
-              color: "#9CA3AF",
-              letterSpacing: "0.12em",
-              textTransform: "uppercase",
-              fontWeight: 600,
-              margin: "0 0 3px 0",
-            }}
-          >
+          <p style={{ fontSize: 9, color: "#9CA3AF", letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 600, margin: "0 0 3px 0" }}>
             VERIFY AT
           </p>
-          <p
-            style={{
-              fontSize: 10,
-              color: "#6B7280",
-              fontFamily: "monospace",
-              margin: 0,
-              wordBreak: "break-all",
-              maxWidth: 200,
-            }}
-          >
-            digicertify.com/verify?certId={certificate.id}
+          <p style={{ fontSize: 10, color: "#6B7280", fontFamily: "monospace", margin: 0, wordBreak: "break-all", maxWidth: 200 }}>
+            {verificationUrl.replace(/^https?:\/\//, "")}
           </p>
         </div>
       </div>
 
-      {/* ════════════════════════════════════════ */}
       {/* ── RIGHT RIBBON AREA ── */}
-      {/* ════════════════════════════════════════ */}
-
-      {/* Vertical Ribbon (light grey with a chevron cut at bottom) */}
-      <div
-        style={{
-          position: "absolute",
-          top: 0,
-          right: 80,
-          width: 148,
-          height: 340,
-          backgroundColor: "#E2E8F0",
-          opacity: 0.88,
-          clipPath: "polygon(0 0, 100% 0, 100% 100%, 50% 87%, 0 100%)",
-          zIndex: 5,
-        }}
-      />
-
-      {/* "VERIFIED" label inside ribbon */}
-      <div
-        style={{
-          position: "absolute",
-          top: 32,
-          right: 80,
-          width: 148,
-          textAlign: "center",
-          zIndex: 6,
-        }}
-      >
-        <span
-          style={{
-            display: "block",
-            paddingBottom: 14,
-            paddingTop: 20,
-            fontSize: 11.5,
-            fontWeight: 700,
-            color: "#475569",
-            letterSpacing: "0.26em",
-            textTransform: "uppercase",
-            borderBottom: "1px solid #CBD5E1",
-          }}
-        >
+      {/* Ribbon */}
+      <div style={{ position: "absolute", top: 0, right: 80, width: 148, height: 340, backgroundColor: "#E2E8F0", opacity: 0.88, clipPath: "polygon(0 0, 100% 0, 100% 100%, 50% 87%, 0 100%)", zIndex: 5 }} />
+      {/* VERIFIED label */}
+      <div style={{ position: "absolute", top: 32, right: 80, width: 148, textAlign: "center", zIndex: 6 }}>
+        <span style={{ display: "block", paddingBottom: 14, paddingTop: 20, fontSize: 11.5, fontWeight: 700, color: "#475569", letterSpacing: "0.26em", textTransform: "uppercase", borderBottom: "1px solid #CBD5E1" }}>
           VERIFIED
         </span>
       </div>
-
-      {/* Circular seal inside ribbon */}
-      <div
-        style={{
-          position: "absolute",
-          top: 126,
-          right: 80 + (148 - 112) / 2, // centered in ribbon
-          width: 112,
-          height: 112,
-          borderRadius: "50%",
-          border: "1.5px dashed #94A3B8",
-          backgroundColor: "#FDFDFB",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          zIndex: 6,
-        }}
-      >
-        <div
-          style={{
-            width: "88%",
-            height: "88%",
-            borderRadius: "50%",
-            border: "1px solid #CBD5E1",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 2,
-          }}
-        >
-          <span
-            style={{
-              fontSize: 6,
-              fontWeight: 700,
-              color: "#64748B",
-              letterSpacing: "0.1em",
-              textTransform: "uppercase",
-              borderBottom: "1px solid #E2E8F0",
-              paddingBottom: 3,
-              width: "72%",
-              textAlign: "center",
-            }}
-          >
+      {/* Circular seal */}
+      <div style={{ position: "absolute", top: 126, right: 80 + (148 - 112) / 2, width: 112, height: 112, borderRadius: "50%", border: "1.5px dashed #94A3B8", backgroundColor: "#FDFDFB", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 6 }}>
+        <div style={{ width: "88%", height: "88%", borderRadius: "50%", border: "1px solid #CBD5E1", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2 }}>
+          <span style={{ fontSize: 6, fontWeight: 700, color: "#64748B", letterSpacing: "0.1em", textTransform: "uppercase", borderBottom: "1px solid #E2E8F0", paddingBottom: 3, width: "72%", textAlign: "center" }}>
             Digitally Verified
           </span>
-          <Award
-            style={{
-              width: 22,
-              height: 22,
-              color: "#94A3B8",
-              marginTop: 2,
-              marginBottom: 2,
-            }}
-          />
-          <span
-            style={{
-              fontSize: 6,
-              fontWeight: 700,
-              color: "#64748B",
-              letterSpacing: "0.1em",
-              textTransform: "uppercase",
-              borderTop: "1px solid #E2E8F0",
-              paddingTop: 3,
-              width: "72%",
-              textAlign: "center",
-            }}
-          >
+          <Award style={{ width: 22, height: 22, color: "#94A3B8", marginTop: 2, marginBottom: 2 }} />
+          <span style={{ fontSize: 6, fontWeight: 700, color: "#64748B", letterSpacing: "0.1em", textTransform: "uppercase", borderTop: "1px solid #E2E8F0", paddingTop: 3, width: "72%", textAlign: "center" }}>
             Certificate
           </span>
         </div>
       </div>
 
       {/* ── Signature at bottom-right ── */}
-      <div
-        style={{
-          position: "absolute",
-          bottom: 48,
-          right: 64,
-          textAlign: "center",
-          zIndex: 10,
-          width: 200,
-        }}
-      >
-        {/* Cursive signature */}
-        <div
-          style={{
-            fontFamily: "'Brush Script MT', 'Segoe Print', 'Lucida Handwriting', cursive",
-            fontSize: 38,
-            color: "#1E293B",
-            opacity: 0.88,
-            transform: "rotate(-2deg)",
-            marginBottom: 6,
-            whiteSpace: "nowrap",
-          }}
-        >
+      <div style={{ position: "absolute", bottom: 48, right: 64, textAlign: "center", zIndex: 10, width: 200 }}>
+        <div style={{ fontFamily: "'Brush Script MT', 'Segoe Print', 'Lucida Handwriting', cursive", fontSize: 38, color: "#1E293B", opacity: 0.88, transform: "rotate(-2deg)", marginBottom: 6, whiteSpace: "nowrap" }}>
           J. Anderson
         </div>
-        {/* Signature line */}
-        <div
-          style={{
-            width: "100%",
-            height: 1,
-            backgroundColor: "#64748B",
-            marginBottom: 6,
-          }}
-        />
-        <p
-          style={{
-            fontSize: 11,
-            fontWeight: 600,
-            color: "#374151",
-            margin: "0 0 2px 0",
-          }}
-        >
+        <div style={{ width: "100%", height: 1, backgroundColor: "#64748B", marginBottom: 6 }} />
+        <p style={{ fontSize: 11, fontWeight: 600, color: "#374151", margin: "0 0 2px 0" }}>
           Authorized Signatory
         </p>
-        <p
-          style={{
-            fontSize: 9.5,
-            color: "#9CA3AF",
-            letterSpacing: "0.06em",
-            margin: "0 0 12px 0",
-          }}
-        >
+        <p style={{ fontSize: 9.5, color: "#9CA3AF", letterSpacing: "0.06em", margin: "0 0 12px 0" }}>
           DigiCertify Platform
         </p>
-        {/* Certificate ID */}
-        <p
-          style={{
-            fontSize: 9.5,
-            color: "#9CA3AF",
-            fontFamily: "monospace",
-            margin: 0,
-            lineHeight: 1.5,
-          }}
-        >
+        <p style={{ fontSize: 9.5, color: "#9CA3AF", fontFamily: "monospace", margin: 0, lineHeight: 1.5 }}>
           Certificate ID:<br />
           <span style={{ fontWeight: 600, color: "#6B7280" }}>{certificate.id}</span>
         </p>
@@ -589,20 +489,17 @@ const CertificatePreview = ({ certificate, onDownload, hideButton }: Props) => {
     </div>
   );
 
-  // ── On-screen preview wrapper ──────────────────────────────────────────────
-  // We scale the fixed 1120×790 canvas down to fit inside the viewport.
-  // The outer "stage" div is sized to match the visual footprint after scaling,
-  // so it doesn't push other elements off-screen.
-  const PREVIEW_MAX_W = 800; // max visible width of the preview area (px)
-  const scale = Math.min(1, PREVIEW_MAX_W / CERT_W); // e.g. 800/1120 ≈ 0.714
+  // ── Pick which body to render based on whether a template is active ──────────
+  const CertBody = activeTemplate ? TemplateCertBody : BuiltInCertBody;
 
+  // ── On-screen preview wrapper ──────────────────────────────────────────────
   return (
     <div className="animate-fade-in flex flex-col items-center w-full" style={{ gap: 24 }}>
       {/* Stage: sized to the SCALED dimensions so page layout is correct */}
       <div
         style={{
-          width: Math.round(CERT_W * scale),
-          height: Math.round(CERT_H * scale),
+          width: Math.round(CERT_W * PREVIEW_SCALE),
+          height: Math.round(CERT_H * PREVIEW_SCALE),
           position: "relative",
           boxShadow: "0 8px 40px rgba(0,0,0,0.18)",
           borderRadius: 4,
@@ -614,7 +511,7 @@ const CertificatePreview = ({ certificate, onDownload, hideButton }: Props) => {
         <div
           style={{
             transformOrigin: "top left",
-            transform: `scale(${scale})`,
+            transform: `scale(${PREVIEW_SCALE})`,
             width: CERT_W,
             height: CERT_H,
           }}
@@ -629,8 +526,8 @@ const CertificatePreview = ({ certificate, onDownload, hideButton }: Props) => {
           onClick={handleDownload}
           disabled={downloading}
           className={`w-full max-w-md mx-auto h-12 font-semibold text-base transition-all duration-300 border-0 ${downloaded
-              ? "bg-green-600 text-white hover:bg-green-700 shadow-lg shadow-green-600/20"
-              : "bg-gray-900 text-white hover:bg-gray-800 shadow-lg shadow-gray-900/20"
+            ? "bg-green-600 text-white hover:bg-green-700 shadow-lg shadow-green-600/20"
+            : "bg-gray-900 text-white hover:bg-gray-800 shadow-lg shadow-gray-900/20"
             } disabled:opacity-70 disabled:cursor-not-allowed`}
           size="lg"
         >

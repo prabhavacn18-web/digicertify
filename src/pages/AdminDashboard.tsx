@@ -4,14 +4,17 @@ import Papa from "papaparse";
 import { useApp, Student } from "@/context/AppContext";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Upload, LogOut, Award, Download, Users, FileText, TrendingUp } from "lucide-react";
+import { Upload, LogOut, Award, Download, Users, FileText, TrendingUp, ChevronRight, ImagePlus, Trash2, CheckCircle2, LayoutTemplate } from "lucide-react";
 
 const AdminDashboard = () => {
-  const { isAdmin, logout, students, setStudents, certificates } = useApp();
+  const { isAdmin, logout, students, setStudents, certificates, templates, addTemplate, deleteTemplate, setActiveTemplate } = useApp();
   const navigate = useNavigate();
   const fileRef = useRef<HTMLInputElement>(null);
+  const templateFileRef = useRef<HTMLInputElement>(null);
   const [uploadMsg, setUploadMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [templateMsg, setTemplateMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [isTplDragging, setIsTplDragging] = useState(false);
 
   if (!isAdmin) return <Navigate to="/admin-login" replace />;
 
@@ -60,6 +63,39 @@ const AdminDashboard = () => {
   };
 
   const handleLogout = () => { logout(); navigate("/"); };
+
+  // ── Template upload logic ─────────────────────────────────────────────────
+  const processTemplateFile = (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      setTemplateMsg({ type: "error", text: "Only PNG or JPG image files are supported." });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setTemplateMsg({ type: "error", text: "File too large. Maximum size is 5 MB." });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target?.result as string;
+      addTemplate(file.name, dataUrl);
+      setTemplateMsg({ type: "success", text: `Template "${file.name}" uploaded successfully.` });
+    };
+    reader.onerror = () => setTemplateMsg({ type: "error", text: "Failed to read the file." });
+    reader.readAsDataURL(file);
+  };
+
+  const handleTemplateUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) processTemplateFile(file);
+    e.target.value = "";
+  };
+
+  const handleTemplateDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsTplDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) processTemplateFile(file);
+  };
 
   const stats = [
     { icon: Users, label: "Students Loaded", value: students.length, color: "blue" },
@@ -114,19 +150,19 @@ const AdminDashboard = () => {
             <div
               key={label}
               className={`rounded-xl glass border p-5 transition-all duration-300 hover:-translate-y-1 ${color === "blue"
-                  ? "border-blue-500/20 hover:border-blue-500/40 hover:shadow-[0_0_20px_hsl(217_91%_60%/0.15)]"
-                  : color === "teal"
-                    ? "border-teal-500/20 hover:border-teal-500/40 hover:shadow-[0_0_20px_hsl(173_80%_40%/0.15)]"
-                    : "border-cyan-500/20 hover:border-cyan-500/40 hover:shadow-[0_0_20px_hsl(185_100%_50%/0.12)]"
+                ? "border-blue-500/20 hover:border-blue-500/40 hover:shadow-[0_0_20px_hsl(217_91%_60%/0.15)]"
+                : color === "teal"
+                  ? "border-teal-500/20 hover:border-teal-500/40 hover:shadow-[0_0_20px_hsl(173_80%_40%/0.15)]"
+                  : "border-cyan-500/20 hover:border-cyan-500/40 hover:shadow-[0_0_20px_hsl(185_100%_50%/0.12)]"
                 }`}
             >
               <div className="flex items-center gap-3">
                 <div
                   className={`rounded-lg p-2 ${color === "blue"
-                      ? "bg-blue-500/15 text-blue-400"
-                      : color === "teal"
-                        ? "bg-teal-500/15 text-teal-400"
-                        : "bg-cyan-500/15 text-cyan-400"
+                    ? "bg-blue-500/15 text-blue-400"
+                    : color === "teal"
+                      ? "bg-teal-500/15 text-teal-400"
+                      : "bg-cyan-500/15 text-cyan-400"
                     }`}
                 >
                   <Icon className="w-5 h-5" />
@@ -138,6 +174,32 @@ const AdminDashboard = () => {
               </div>
             </div>
           ))}
+        </div>
+
+        {/* ── Download All Certificates Action Card ────────────────────── */}
+        <div
+          onClick={() => students.length > 0 ? navigate("/admin/download-certificates") : undefined}
+          className={`rounded-2xl glass border border-border/40 shadow-card p-5 flex items-center justify-between gap-4 transition-all duration-300 ${students.length > 0
+            ? "cursor-pointer hover:-translate-y-1 hover:border-teal-500/40 hover:shadow-[0_0_25px_hsl(173_80%_40%/0.2)] group"
+            : "opacity-60 cursor-not-allowed"
+            }`}
+        >
+          <div className="flex items-center gap-4">
+            <div className="rounded-xl bg-teal-500/15 border border-teal-500/20 p-3 group-hover:bg-teal-500/25 transition-colors">
+              <Download className="w-5 h-5 text-teal-400" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold font-display text-foreground">Download All Certificates</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {students.length > 0
+                  ? `Generate and bulk-download PDFs for all ${students.length} student(s)`
+                  : "Upload student data first to enable bulk download"}
+              </p>
+            </div>
+          </div>
+          {students.length > 0 && (
+            <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-teal-400 group-hover:translate-x-0.5 transition-all shrink-0" />
+          )}
         </div>
 
         {/* Upload Section */}
@@ -155,8 +217,8 @@ const AdminDashboard = () => {
             onDrop={handleDrop}
             onClick={() => fileRef.current?.click()}
             className={`relative rounded-xl border-2 border-dashed p-10 text-center cursor-pointer transition-all duration-300 ${isDragging
-                ? "border-blue-500/70 bg-blue-500/10 shadow-[0_0_25px_hsl(217_91%_60%/0.2)]"
-                : "border-border/50 hover:border-blue-500/40 hover:bg-blue-500/5"
+              ? "border-blue-500/70 bg-blue-500/10 shadow-[0_0_25px_hsl(217_91%_60%/0.2)]"
+              : "border-border/50 hover:border-blue-500/40 hover:bg-blue-500/5"
               }`}
           >
             <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={handleUpload} />
@@ -171,8 +233,8 @@ const AdminDashboard = () => {
           {uploadMsg && (
             <div
               className={`mt-4 rounded-lg px-4 py-3 border text-sm font-medium ${uploadMsg.type === "success"
-                  ? "bg-green-500/10 border-green-500/30 text-green-400"
-                  : "bg-red-500/10 border-red-500/30 text-red-400"
+                ? "bg-green-500/10 border-green-500/30 text-green-400"
+                : "bg-red-500/10 border-red-500/30 text-red-400"
                 }`}
             >
               {uploadMsg.text}
@@ -267,6 +329,166 @@ const AdminDashboard = () => {
             </div>
           </div>
         )}
+        {/* ════════════════════════════════════════════════════════════ */}
+        {/* ── CERTIFICATE TEMPLATES SECTION ────────────────────────── */}
+        {/* ════════════════════════════════════════════════════════════ */}
+        <div className="rounded-2xl glass border border-border/40 shadow-card overflow-hidden">
+          {/* Section header */}
+          <div className="p-5 border-b border-border/40 flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <div className="rounded-lg bg-blue-500/15 border border-blue-500/20 p-2">
+                <LayoutTemplate className="w-4 h-4 text-blue-400" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold font-display text-foreground">Certificate Templates</h2>
+                <p className="text-xs text-muted-foreground">Upload a PNG/JPG background template. Set one as active to use it for all certificate generation.</p>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              onClick={() => templateFileRef.current?.click()}
+              className="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-teal-500 border-0 shadow-[0_0_12px_hsl(217_91%_60%/0.3)] hover:shadow-[0_0_20px_hsl(217_91%_60%/0.5)] transition-all duration-300"
+            >
+              <ImagePlus className="w-3.5 h-3.5 mr-1.5" />
+              Upload Template
+            </Button>
+            <input
+              ref={templateFileRef}
+              type="file"
+              accept="image/png,image/jpeg,image/jpg"
+              className="hidden"
+              onChange={handleTemplateUpload}
+            />
+          </div>
+
+          <div className="p-5 space-y-5">
+            {/* Drag & drop upload zone */}
+            <div
+              onDragOver={(e) => { e.preventDefault(); setIsTplDragging(true); }}
+              onDragLeave={() => setIsTplDragging(false)}
+              onDrop={handleTemplateDrop}
+              onClick={() => templateFileRef.current?.click()}
+              className={`relative rounded-xl border-2 border-dashed p-8 text-center cursor-pointer transition-all duration-300 ${isTplDragging
+                  ? "border-blue-500/70 bg-blue-500/10 shadow-[0_0_25px_hsl(217_91%_60%/0.2)]"
+                  : "border-border/50 hover:border-blue-500/40 hover:bg-blue-500/5"
+                }`}
+            >
+              <ImagePlus className="w-7 h-7 text-muted-foreground mx-auto mb-2" />
+              <p className="text-sm font-medium text-foreground">
+                Drop your template here, or{" "}
+                <span className="text-blue-400">browse</span>
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">PNG or JPG — up to 5 MB</p>
+            </div>
+
+            {templateMsg && (
+              <div
+                className={`rounded-lg px-4 py-3 border text-sm font-medium ${templateMsg.type === "success"
+                    ? "bg-green-500/10 border-green-500/30 text-green-400"
+                    : "bg-red-500/10 border-red-500/30 text-red-400"
+                  }`}
+              >
+                {templateMsg.text}
+              </div>
+            )}
+
+            {/* Template list */}
+            {templates.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 gap-3 text-center">
+                <div className="w-14 h-14 rounded-full bg-white/5 border border-border/40 flex items-center justify-center">
+                  <LayoutTemplate className="w-7 h-7 text-muted-foreground/30" />
+                </div>
+                <p className="text-muted-foreground text-sm">No templates uploaded yet.</p>
+                <p className="text-muted-foreground/50 text-xs max-w-xs">
+                  Upload a PNG or JPG to use as the certificate background.
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-xl border border-border/40 overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border/40 bg-white/3">
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Preview</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Template Name</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Uploaded</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Status</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {templates.map((tpl, idx) => (
+                      <tr
+                        key={tpl.id}
+                        className={`border-b border-border/20 last:border-0 transition-colors ${idx % 2 === 0 ? "bg-transparent" : "bg-white/[0.015]"
+                          } hover:bg-white/[0.03]`}
+                      >
+                        {/* Preview thumbnail */}
+                        <td className="px-4 py-3">
+                          <div className="w-20 h-14 rounded-lg overflow-hidden border border-border/40 bg-white/5 flex items-center justify-center">
+                            <img
+                              src={tpl.dataUrl}
+                              alt={tpl.name}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        </td>
+                        {/* Template name */}
+                        <td className="px-4 py-3 font-medium text-foreground max-w-[200px]">
+                          <span className="truncate block" title={tpl.name}>{tpl.name}</span>
+                        </td>
+                        {/* Uploaded date */}
+                        <td className="px-4 py-3 text-muted-foreground text-xs">
+                          {new Date(tpl.createdAt).toLocaleDateString("en-IN", {
+                            day: "2-digit", month: "short", year: "numeric",
+                          })}
+                        </td>
+                        {/* Status badge */}
+                        <td className="px-4 py-3">
+                          {tpl.isActive ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-500/15 text-green-400 border border-green-500/25">
+                              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                              Active
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-white/5 text-muted-foreground border border-border/30">
+                              Inactive
+                            </span>
+                          )}
+                        </td>
+                        {/* Actions */}
+                        <td className="px-4 py-3 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            {!tpl.isActive && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setActiveTemplate(tpl.id)}
+                                className="h-7 text-xs border-green-500/30 text-green-400 hover:bg-green-500/10 hover:border-green-500/50 transition-all"
+                              >
+                                <CheckCircle2 className="w-3 h-3 mr-1" />
+                                Set Active
+                              </Button>
+                            )}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => deleteTemplate(tpl.id)}
+                              className="h-7 text-xs border-red-500/30 text-red-400 hover:bg-red-500/10 hover:border-red-500/50 transition-all"
+                            >
+                              <Trash2 className="w-3 h-3 mr-1" />
+                              Delete
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+
       </main>
 
       <footer className="relative z-10 py-6 text-center text-sm text-muted-foreground/50 border-t border-border/30">

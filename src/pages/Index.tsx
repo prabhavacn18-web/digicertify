@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { ShieldCheck, Award, FileCheck, FilePlus, Sparkles, Zap, Lock } from "lucide-react";
+import { Award, FileCheck, FilePlus, Sparkles, Zap, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const Index = () => {
@@ -105,15 +105,6 @@ const Index = () => {
             >
               <FileCheck className="mr-2 w-5 h-5" />
               Verify Certificate
-            </Button>
-            <Button
-              size="lg"
-              variant="ghost"
-              className="text-base px-8 py-6 font-semibold text-muted-foreground hover:text-foreground glass hover:border-blue-500/30 border border-transparent transition-all duration-300 hover:scale-[1.03]"
-              onClick={() => navigate("/admin-login")}
-            >
-              <ShieldCheck className="mr-2 w-5 h-5" />
-              Admin Login
             </Button>
           </div>
         </div>

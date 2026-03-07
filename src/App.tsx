@@ -7,6 +7,7 @@ import { AppProvider } from "@/context/AppContext";
 import Index from "./pages/Index";
 import AdminLogin from "./pages/AdminLogin";
 import AdminDashboard from "./pages/AdminDashboard";
+import AdminDownloadCertificates from "./pages/AdminDownloadCertificates";
 import CertificateGenerate from "./pages/CertificateGenerate";
 import CertificateVerify from "./pages/CertificateVerify";
 import NotFound from "./pages/NotFound";
@@ -24,6 +25,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/admin-login" element={<AdminLogin />} />
             <Route path="/dashboard" element={<AdminDashboard />} />
+            <Route path="/admin/download-certificates" element={<AdminDownloadCertificates />} />
             <Route path="/generate" element={<CertificateGenerate />} />
             <Route path="/verify" element={<CertificateVerify />} />
             <Route path="*" element={<NotFound />} />
